@@ -1,52 +1,96 @@
 # Security Analytics & Threat Detection
 
-## Overview
+Nine SOC-style analytics workflows across roughly 1.3 million log and URL records, from domain frequency triage through to three machine learning classifiers benchmarked against each other.
 
-This project focuses on SOC-style security analytics using log analysis, SIEM concepts, Python, Kibana, NetFlow analysis, endpoint logs, DNS logs, SSL logs, Windows event logs, and anomaly detection techniques.
+**[Read the full project report (PDF)](./Security%20Analytics%20and%20Threat%20Detection%20Report.pdf)**
 
-The goal of this project was to analyze multiple security data sources, identify suspicious activity, investigate abnormal traffic patterns, and document findings in a structured security investigation format.
+> All work was performed against training datasets in an isolated analysis environment. Raw datasets and source log files are not included in this repository.
 
-## Security Focus
+---
 
-- Security monitoring
-- Log analysis
-- Event correlation
-- Threat detection
-- NetFlow analysis
-- Endpoint log analysis
-- Anomaly detection
-- Incident investigation
-- Data exposure risk analysis
+## Tools
 
-## Tools & Technologies
+| Tool | Use |
+|---|---|
+| Python, pandas, NumPy | Log parsing, enrichment, feature processing |
+| Kibana | Querying, filtering, dashboards |
+| scikit-learn | Logistic Regression, Random Forest, MLP classifiers |
+| ipwhois | ASN and IP ownership attribution |
 
-- Python
-- Kibana
-- SIEM concepts
-- NetFlow logs
-- DNS logs
-- SSL logs
-- Endpoint logs
-- Windows event logs
-- scikit-learn
-- pandas
-- NumPy
+Data sources included DNS, SSL/TLS, endpoint, Windows event, HTTP, fileinfo and SMTP-style events, plus labeled phishing and benign website feature sets.
 
-## Key Activities
+---
 
-- Analyzed domain frequency, access logs, DNS logs, SSL logs, endpoint logs, Windows event logs, and NetFlow data.
-- Investigated abnormal outbound connections, high-volume data transfers, and unusual long-duration network sessions.
-- Applied SIEM concepts, event correlation, and anomaly detection to support SOC-style investigation workflows.
-- Evaluated suspicious traffic patterns including failed TLS activity, abnormal port usage, protocol mismatches, and potential data exfiltration behavior.
-- Built and evaluated machine learning models using scikit-learn to classify suspicious or malicious activity.
-- Used Python-based data cleaning and analysis techniques to identify recurring risk patterns and document findings.
+## Workflows and Findings
 
-## Findings Summary
+### Domain frequency analysis
 
-The analysis identified suspicious traffic behaviors including abnormal outbound connections, unusual port usage, failed TLS activity, high-volume data transfers, and possible command-and-control or data exfiltration indicators.
+Extracted primary domains from a URL corpus and scored them by frequency, on the premise that rare domains are worth an analyst's attention before common ones.
 
-This project demonstrates how security analytics can support SOC workflows by combining log analysis, SIEM-style correlation, Python-based data analysis, anomaly detection, and structured reporting.
+- Processed approximately **1,000,000 URL records**
+- Applied a frequency threshold that reduced the set to **156,871 records** for review
+- Produced a domain, frequency and score table usable as a threat hunting queue
 
-## Notes
+### Access log analysis
 
-This repository contains documentation and analysis summaries only. Raw datasets and source log files are not included.
+Enriched raw authentication and resource-access logs with the identity context an analyst needs to triage them.
+
+- Analyzed approximately **333,952 access log records**
+- Joined **100 employee records** and **81 resource records** by employee and resource ID
+- Result: every log line carried user, department, resource, location, IP, action and outcome, turning raw events into reviewable access activity
+
+### AI-assisted NetFlow review
+
+Ran an assisted first pass over a NetFlow capture, then validated every claim against the underlying evidence.
+
+| Attribute | Value |
+|---|---|
+| Records | 165 flows |
+| Fields | 20, including timestamps, flow IDs, IPs, ports, protocols, packet and byte counts |
+| Most active source | 192.168.163.136 (90 occurrences) |
+| Most active destination | 72.21.91.29 (40 occurrences) |
+| Common destination ports | 80, 443, 1900 |
+
+Flagged for investigation: outbound traffic over port 1900 inconsistent with normal SSDP behavior, a host showing failed TLS activity alongside elevated outbound volume, horizontal scanning from 192.168.163.136 across multiple destinations, and RPC and management port activity consistent with possible lateral movement.
+
+The important part of this exercise was the validation step. Assisted analysis accelerated the first pass, but each finding still had to be confirmed against the flow records before it counted.
+
+> Deeper NetFlow exfiltration hunting, including the ASN enrichment pipeline and Kibana detection rule, lives in a dedicated repository: **[netflow-threat-detection](https://github.com/pshirolk3012/netflow-threat-detection)**
+
+### Machine learning classification
+
+Trained and compared three classifiers on a labeled malicious and benign website dataset of approximately **24,232 records across 13 core features**.
+
+| Model | Accuracy | Notes |
+|---|---|---|
+| Logistic Regression | ~82.9% | ROC-AUC ~0.854. Interpretable coefficients, useful baseline |
+| Random Forest | ~91 to 92% | Strongest performer, clear feature importance output |
+| Neural network (MLP) | ~85 to 87% | Convergence warnings indicated more tuning and scaling were needed |
+
+Top signals were page interaction and script-related indicators, including inline script counts and onload counts.
+
+**What this showed:** the more complex model did not win. Random Forest beat the MLP, and Logistic Regression stayed useful because its coefficients could be explained to someone who has to act on the output.
+
+---
+
+## SOC Workflow Demonstrated
+
+1. Collect and load data from domains, access logs, NetFlow records and labeled datasets
+2. Clean and enrich logs with employee, department and resource context
+3. Surface suspicious events using filtering, baselining, frequency analysis, thresholds and correlation
+4. Investigate specific behaviors: abnormal outbound traffic, failed TLS, suspicious port usage
+5. Validate assisted findings against manual evidence to control false positives
+6. Train and evaluate models for malicious and benign classification
+7. Document findings in a form suitable for escalation and review
+
+---
+
+## Takeaways
+
+**Rare beats loud.** Frequency analysis turns an unmanageable URL corpus into a prioritized hunting queue without a single signature.
+
+**Enrichment is the analysis.** A raw access log is not evidence. Joined to employee and resource context, the same rows answer who touched what and whether they should have.
+
+**Assisted analysis needs a verification step.** Speed on the first pass is only valuable if every finding is confirmed against the evidence before escalation.
+
+**Metrics need interpretation, not just reporting.** Accuracy alone hid the fact that the interpretable model was the more useful one operationally.
