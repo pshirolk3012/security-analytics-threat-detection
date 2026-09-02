@@ -49,4 +49,4 @@ This project demonstrates how security analytics can support SOC workflows by co
 
 ## Notes
 
-This repository contains documentation and analysis summaries only. Raw datasets and course-provided files are not included.
+This repository contains documentation and analysis summaries only. Raw datasets and source log files are not included.
